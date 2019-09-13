@@ -60,7 +60,7 @@
   (let* ((nodes (loop for i from 1 to *node-num*
 		   collect i))
 	 (edge-list (connect-all-islands nodes (make-edge-list)))
-	 (cops (remove-if-not (lambda ()
+	 (cops (remove-if-not (lambda (x)
 				(zerop (random *cop-odds*)))
 			      edge-list)))
     (add-cops (edges-to-alist edge-list) cops)))
