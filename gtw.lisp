@@ -3,6 +3,7 @@
 (defparameter *congestion-city-nodes* nil)
 (defparameter *congestion-city-edges* nil)
 (defparameter *visited-nodes* nil)
+(defparameter *visited-edges* nil)
 (defparameter *node-num* 30) ;; locations
 (defparameter *edge-num* 45) ;; roads
 (defparameter *worm-num* 3)  ;; worm teams
@@ -137,9 +138,68 @@
   (setf *congestion-city-nodes* (make-city-nodes *congestion-city-edges*))
   (setf *player-pos* (find-empty-node))
   (setf *visited-nodes* (list *player-pos*))
-  (draw-city))
+  (draw-city)
+  (draw-known-city))
 
 
 (defun draw-city ()
-  (print *congestion-city-nodes*)
   (ugraph->png "city" *congestion-city-nodes* *congestion-city-edges*))
+
+(defun draw-known-city ()
+  (ugraph->png "known-city" (known-city-nodes) (known-city-edges)))
+
+
+(defun known-city-nodes ()
+  (mapcar (lambda (node)
+	    (if (member node *visited-nodes*)
+		(let ((n (assoc node *congestion-city-nodes*)))
+		  (if (eql node *player-pos*)
+		      (append n '(*))
+		      n))
+		(list node '?)))
+	  (remove-duplicates
+	   (append *visited-nodes*
+		   (mapcan (lambda (node)
+			     (mapcar #'car
+				     (cdr (assoc node
+						 *congestion-city-edges*))))
+			   *visited-nodes*)))))
+
+(defun known-city-edges ()
+  (mapcar (lambda (node)
+	    (cons node (mapcar (lambda (x)
+				 (if (member (car x) *visited-nodes*)
+				     x
+				     (list (car x))))
+			       (cdr (assoc node *congestion-city-edges*)))))
+	  *visited-nodes*))
+
+(defun walk (pos)
+  (handle-direction pos nil))
+
+(defun charge (pos)
+  (handle-direction pos t))
+
+(defun handle-direction (pos charging)
+  (let ((edge (assoc pos
+		     (cdr (assoc *player-pos* *congestion-city-edges*)))))
+    (if edge
+	(handle-new-place edge pos charging)
+	(princ "That location does not exist!!"))))
+
+(defun handle-new-place (edge pos charging)
+  (let* ((node (assoc pos *congestion-city-nodes*))
+	 (has-worm (and (member 'glow-worm node)
+			(not (member pos *visited-nodes*)))))
+    (pushnew pos *visited-nodes*)
+    (setf *player-pos* pos)
+    (draw-known-city)
+    (cond ((member 'cops edge) (princ "A crude police officer tackles you and points his gun in your face. GAME OVER"))
+	  ((member 'wumpus node) (if charging
+				     (princ "You run into the house and shoot your only bullet. The Wumpus is struck down. Gratz, you're rich now!")
+				     (princ "As you open the door you hear some AK47 shots. Blood drips from your body. The wumpus smiles: \"You're as dump as ever. Haha! \" ")))
+	  (charging (princ "You run into the house and shoot your only bullet. The bullet hits an innocent child. GAME OVER BASTARD"))
+	  (has-worm (let ((new-pos (random-node)))
+		      (princ "You ran into a Glow warm Gang! They punch you in the stomach kidnap you and drive you to ")
+		      (princ new-pos)
+		      (handle-new-place nil new-pos nil))))))
