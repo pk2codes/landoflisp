@@ -16,13 +16,15 @@
 (defmethod monster-attack (m)
   (princ "a monster is attacking you.. nothing happens..."))
 
+
 (defun monster-dead (m)
   (<= (monster-health m) 0))
 
 (defun monsters-dead ()
   (every #'monster-dead *monsters*))
 
-(defun monster-hit (m x)
+
+(defmethod monster-hit (m x)
   (decf (monster-health m) x)
   (if (monster-dead m)
       (progn
@@ -35,6 +37,9 @@
 	(princ ", knocking of ")
 	(princ x)
 	(princ " health points! "))))
+
+
+
 
 (defun show-monsters ()
   (fresh-line)
@@ -60,7 +65,7 @@
 	     (lambda (x)
 	       (funcall (nth (random (length *monster-builders*))
 			     *monster-builders*)))
-	     (make-array *monster-num))))
+	     (make-array *monster-num*))))
 
 ;; ============= MONSTERS ===================
 
@@ -118,7 +123,7 @@
 (defmethod monster-attack ((m slime-mold))
   (let ((x (randval (slime-mold-slimeliness m))))
     (princ "A slime mold wraps around your legs and decreases your agility by")
-    (princ (x))
+    (princ x)
     (princ "! ")
     (decf *player-agility* x)
     (when (zerop (random 2))
@@ -130,15 +135,15 @@
 (push #'make-brigand *monster-builders*)
 
 (defmethod monster-attack ((m brigand))
-  (let ((x (max *player-health* *player-agility* *player-strength*))
-	(cond ((= x *player-health*)
-	       (princ "A brigand hits you with his slingshot, taking off 2 health points! ")
-	       (decf *player-health* 2))
-	      ((= x *player-agility*)
-	       (princ "A brigand catches your leg with his whip, taking off 2 agility points! "))'
-	      ((= x *player-strength*)
-	       (princ "A brigand cuts your arm with his whip, taking off 2 strength points! ")
-	       (decf *player-strength*))))))
+  (let ((x (max *player-health* *player-agility* *player-strength*)))
+    (cond ((= x *player-health*)
+	   (princ "A brigand hits you with his slingshot, taking off 2 health points! ")
+	   (decf *player-health* 2))
+	  ((= x *player-agility*)
+	   (princ "A brigand catches your leg with his whip, taking off 2 agility points! "))
+	  ((= x *player-strength*)
+	   (princ "A brigand cuts your arm with his whip, taking off 2 strength points! ")
+	   (decf *player-strength*)))))
 
 ;; ============== MONSTERS END =============
 
@@ -192,7 +197,7 @@
 	 (princ x)
 	 (fresh-line)
 	 (monster-hit (pick-monster) x)
-	 (unless (monster-dead)
+	 (unless (monsters-dead)
 	   (monster-hit (pick-monster) x))))
     (otherwise (dotimes (x (1+ (randval (truncate (/ *player-strength* 3))))))
 	       (unless (monsters-dead)
