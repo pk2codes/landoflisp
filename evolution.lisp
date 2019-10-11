@@ -5,6 +5,21 @@
 (defparameter *reproduction-energy* 200)
 (defparameter *plants* (make-hash-table :test #'equal))
 
+(defun movement-genes (animal)
+  (subseq (animal-genes animal) 0 8))
+
+(defun energy-efficiency-meat-gene (animal)
+  (nth 8 (animal-genes animal)))
+
+(defun energy-efficiency-veg-gene (animal)
+  (nth 9 (animal-genes animal)))
+
+(defun affinity-meat-gene (animal)
+  (nth 10 (animal-genes animal)))
+
+(defun affinity-veg-gene (animal)
+  (nth 11 (animal-genes animal)))
+
 (defun random-plant (left top width height)
   (let ((pos (cons (+ left (random width)) (+ top (random height)))))
     (setf (gethash pos *plants*) t)))
@@ -20,6 +35,10 @@
 ;; 7  A  3
 ;; 6  5  4
 ;; genes: '(g0, g1, g2, g3, g4, g5, g6, g7) representing "tendency" to move in a given dir
+;; g8 energy efficiency / meat
+;; g9 energy efficiency / veggies
+;; g10 affinity / meat,
+;; g11 affinity / veggies
 (defstruct animal x y energy dir genes)
 
 (defparameter *animals*
@@ -27,7 +46,8 @@
 		     :y (ash *height* -1)
 		     :energy 1000
 		     :dir 0
-		     :genes (loop repeat 8
+
+		     :genes (loop repeat 12 
 			       collecting (1+ (random 10))))))
 
 (defun move (animal)
@@ -46,16 +66,17 @@
 				 *height*))
     (decf (animal-energy animal))))
 
+(defun angle (genes x)
+  (let ((xnu (- x (car genes))))
+    (if (< xnu 0)
+	0
+	(1+ (angle (cdr genes) xnu)))))
+
 (defun turn (animal)
-  (let ((x (random (apply #'+ (animal-genes animal)))))
-    (labels ((angle (genes x)
-	       (let ((xnu (- x (car genes))))
-		 (if (< xnu 0)
-		     0
-		     (1+ (angle (cdr genes) xnu))))))
-      (setf (animal-dir animal)
-	    (mod (+ (animal-dir animal) (angle (animal-genes animal) x))
-		 8)))))
+  (let ((x (random (apply #'+ (movement-genes animal)))))
+    (setf (animal-dir animal)
+	    (mod (+ (animal-dir animal) (angle (movement-genes animal) x))
+		 8))))
 
 (defun eat (animal)
   (let ((pos (cons (animal-x animal) (animal-y animal))))
