@@ -134,13 +134,14 @@
 	       (princ "|")
 	       (loop for x
 		  below *width*
-		  do (princ (cond ((some (lambda (animal)
-					   (and (= (animal-x animal) x)
-						(= (animal-y animal) y)))
-					 *animals*)
-				   (animal-symbol animal))
-				  ((gethash (cons x y) *plants*) #\#)
-				  (t #\space))))
+		  do (let ((animal? (find-if (lambda (animal)
+						  (and (= (animal-x animal) x)
+						       (= (animal-y animal) y))) *animals*)))
+		       (princ (cond (((not null animal?)  				  
+				      (animal-symbol animal?)
+				      ((gethash (cons x y) *plants*) #\#)
+				      (t #\space)))))
+		       ))
 	       (princ "|"))))
 
 (defun evolution ()
