@@ -1,9 +1,12 @@
 (defparameter *width* 100)
 (defparameter *height* 60)
 (defparameter *jungle* '(45 10 10 10))
-(defparameter *plant-energy* 80)
+(defparameter *plant-energy* 500)
 (defparameter *reproduction-energy* 200)
 (defparameter *plants* (make-hash-table :test #'equal))
+(defparameter *energy-coeff* 100) ;; describes tanh function for food consumption efficiency
+(defparameter *movement-penalty-coeff* 500)
+(defparameter *max-movement-penalty* 15)
 
 (defun movement-genes (animal)
   (subseq (animal-genes animal) 0 8))
@@ -47,8 +50,13 @@
 		     :energy 1000
 		     :dir 0
 
-		     :genes (loop repeat 12 
-			       collecting (1+ (random 10))))))
+		     :genes (concatenate 'list (loop repeat 8 
+				collecting (1+ (random 20))) '(6 6 6 6) ))))
+
+(defun move-penalty (animal)
+  (let ((veg-effiency (energy-effiency (energy-efficiency-veg-gene animal)))
+	(meat-effiency (energy-effiency (energy-efficiency-meat-gene animal))))
+    (round (* (tanh (/ (+ veg-effiency meat-effiency) *movement-penalty-coeff*)) *max-movement-penalty*))))
 
 (defun move (animal)
   (let ((dir (animal-dir animal))
@@ -78,10 +86,17 @@
 	    (mod (+ (animal-dir animal) (angle (movement-genes animal) x))
 		 8))))
 
+(defun energy-effiency (energy-efficiency-gene)
+  (round (* (tanh (/ energy-efficiency-gene *energy-coeff*)) *plant-energy*)))
+
+(defun eat-plant (animal)
+  (incf (animal-energy animal)
+	(energy-effiency (energy-efficiency-veg-gene animal))))
+
 (defun eat (animal)
   (let ((pos (cons (animal-x animal) (animal-y animal))))
     (when (gethash pos *plants*)
-      (incf (animal-energy animal) *plant-energy*)
+      (eat-plant animal)
       (remhash pos *plants*))))
 
 (defun reproduce (animal)
@@ -90,7 +105,7 @@
       (setf (animal-energy animal) (ash e -1))
       (let ((animal-nu (copy-structure animal))
 	    (genes (copy-list (animal-genes animal)))
-	    (mutation (random 8)))
+	    (mutation (random 12)))
 	(setf (nth mutation genes)
 	      (max 1 (+ (nth mutation genes) (random 3) -1)))
 	(setf (animal-genes animal-nu) genes)
@@ -107,6 +122,11 @@
 	*animals*)
   (add-plants))
 
+(defun animal-symbol (animal)
+  (if (> (energy-efficiency-meat-gene animal) (energy-efficiency-veg-gene animal))
+      #\m
+      #\p))
+
 (defun draw-world ()
   (loop for y
      below *height*
@@ -118,7 +138,7 @@
 					   (and (= (animal-x animal) x)
 						(= (animal-y animal) y)))
 					 *animals*)
-				   #\a)
+				   (animal-symbol animal))
 				  ((gethash (cons x y) *plants*) #\#)
 				  (t #\space))))
 	       (princ "|"))))
