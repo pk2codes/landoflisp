@@ -49,7 +49,6 @@
 		     :y (ash *height* -1)
 		     :energy 1000
 		     :dir 0
-
 		     :genes (concatenate 'list (loop repeat 8 
 				collecting (1+ (random 20))) '(6 6 6 6) ))))
 
@@ -134,13 +133,13 @@
 	       (princ "|")
 	       (loop for x
 		  below *width*
-		  do (let ((animal? (find-if (lambda (animal)
-						  (and (= (animal-x animal) x)
-						       (= (animal-y animal) y))) *animals*)))
-		       (princ (cond (((not null animal?)  				  
-				      (animal-symbol animal?)
-				      ((gethash (cons x y) *plants*) #\#)
-				      (t #\space)))))
+		  do (let ((animal?
+			    (find-if (lambda (animal)
+				       (and (= (animal-x animal) x)
+					    (= (animal-y animal) y))) *animals*)))
+		       (princ (cond ((not (null animal?)) (animal-symbol animal?))
+				    ((gethash (cons x y) *plants*) #\#)
+				    (t #\space)))
 		       ))
 	       (princ "|"))))
 
