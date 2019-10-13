@@ -12,14 +12,15 @@
 (defun movement-genes (animal)
   (subseq (animal-genes animal) 0 8))
 
+
 (defun energy-efficiency-meat-gene (animal)
   (nth 8 (animal-genes animal)))
 
 (defun energy-efficiency-veg-gene (animal)
-  (nth 9 (animal-genes animal)))
+  (nth 8 (animal-genes animal)))
 
 (defun affinity-meat-gene (animal)
-  (nth 10 (animal-genes animal)))
+  (nth 9 (animal-genes animal)))
 
 (defun affinity-veg-gene (animal)
   (nth 11 (animal-genes animal)))
@@ -54,8 +55,9 @@
 				collecting (1+ (random 20))) '(6 6 6 6) ))))
 
 (defun move-penalty (animal)
-  (let ((veg-effiency (energy-effiency (energy-efficiency-veg-gene animal)))
-	(meat-effiency (energy-effiency (energy-efficiency-meat-gene animal))))
+  (let ((veg-effiency (energy-effiency (energy-efficiency-veg-gene animal) *plant-energy* *energy-coeff*))
+	;; not quite optimal but thinking is in progress ;)
+	(meat-effiency (energy-effiency (energy-efficiency-meat-gene animal) *plant-energy* *energy-coeff*)))
     (round (* (tanh (/ (+ veg-effiency meat-effiency) *movement-penalty-coeff*)) *max-movement-penalty*))))
 
 (defun move (animal)
@@ -79,7 +81,9 @@
     (setf (animal-y animal) new-y)
     (remhash pos *animal-positions*)
     (setf (gethash new-pos *animal-positions*) t)
+    (princ pos)
     (decf (animal-energy animal))))
+;; todo: remove more energy depending on genes
 
 (defun angle (genes x)
   (let ((xnu (- x (car genes))))
@@ -93,36 +97,45 @@
 	    (mod (+ (animal-dir animal) (angle (movement-genes animal) x))
 		 8))))
 
-(defun energy-effiency (energy-efficiency-gene)
-  (round (* (tanh (/ energy-efficiency-gene *energy-coeff*)) *plant-energy*)))
+(defun energy-effiency (energy-efficiency-gene energy-cap coeff)
+  (round (* (tanh (/ energy-efficiency-gene coeff)) energy-cap)))
 
-(defun consume-plant-energy (animal)
-  (incf (animal-energy animal)
-	(energy-effiency (energy-efficiency-veg-gene animal))))
+(defun increase-energy (animal energy)
+  (incf (animal-energy animal) energy))
 
 (defun eat-plant (animal pos)
-  (consume-plant-energy animal)
-  (remhash pos *plants*))
+  (let ((new-energy
+	 (energy-effiency (energy-efficiency-veg-gene animal) *plant-energy* *energy-coeff*)))
+    (increase-energy animal new-energy)
+    (remhash pos *plants*)))
+
+(defun find-animal-by-pos (animal pos)
+  (and (= (animal-x animal) (car pos)) (= (animal-y animal) (cdr pos))))
 
 (defun eat-animal (animal-eating pos)
- )
+  (let* ((animal-to-eat
+	 (find-if (lambda (animal) (find-animal-by-pos animal pos))
+		  *animals*))
+	(raw-energy (animal-energy animal-eating))
+	(netto-energy (energy-effiency
+		       (energy-efficiency-meat-gene animal-to-eat) raw-energy *energy-coeff*)))
+    (increase-energy animal-eating netto-energy)
+    (remove-animal animal-to-eat)))
 
-(defun eat-animal-if-affine (animal-eating pos)
-  (let* ((meat-affinity (affinity-meat-gene animal-eating))
-	 (veg-affinity (affinity-veg-gene animal-eating))
-	 (eat-animal-prob (/ meat-affinity (+ veg-affinity meat-affinity)))
-	 (has-eaten (> (* 100 eat-animal-prob) (random 100))))
-    (when has-eaten
-      (eat-animal animal-eating pos))))
+(defun eat-veg-prob (animal)
+  (let* ((meat-affinity (affinity-meat-gene animal))
+	 (veg-affinity (affinity-veg-gene animal))
+	 (eat-plant-prob (/ veg-affinity (+ veg-affinity meat-affinity))))
+    (> (* 100 eat-plant-prob) (random 100))))
+
 
 (defun eat (animal)
   (let* ((pos (cons (animal-x animal) (animal-y animal)))
-	 (has-plants (gethash pos *plants*))
+	 (has-plant (gethash pos *plants*))
 	 (has-animal (gethash pos *animal-positions*))
-	 (has-animal-and-plant (and (has-plants has-animal))))
-    (cond ((has-animal-and-plant) (eat-animalor-plant animal pos)
-	   (has-animal) (eat-animal-if-affine animal pos)
-	   (has-plant) (eat-plant animal)))))
+	 (is-eating-veg (eat-veg-prob animal)))
+    (cond ((and has-animal (not is-eating-veg)) (eat-animal animal pos))
+	  ((and has-plant is-eating-veg) (eat-plant animal pos)))))
 
 (defun reproduce (animal)
   (let ((e (animal-energy animal)))
