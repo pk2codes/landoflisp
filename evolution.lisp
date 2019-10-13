@@ -7,6 +7,7 @@
 (defparameter *energy-coeff* 100) ;; describes tanh function for food consumption efficiency
 (defparameter *movement-penalty-coeff* 500)
 (defparameter *max-movement-penalty* 15)
+(defparameter *animal-positions* (make-hash-table :test #'equal))
 
 (defun movement-genes (animal)
   (subseq (animal-genes animal) 0 8))
@@ -58,19 +59,26 @@
     (round (* (tanh (/ (+ veg-effiency meat-effiency) *movement-penalty-coeff*)) *max-movement-penalty*))))
 
 (defun move (animal)
-  (let ((dir (animal-dir animal))
+  (let* ((dir (animal-dir animal))
 	(x (animal-x animal))
-	(y (animal-y animal)))
-    (setf (animal-x animal) (mod (+ x
-				    (cond ((and (>= dir 2) (< dir 5)) 1)
-					  ((or (= dir 1) (= dir 5)) 0)
-					  (t -1)))
-				 *width*))
-    (setf (animal-y animal) (mod (+ y
-				    (cond ((and (>= dir 0) (< dir 3)) -1)
-					  ((and (>= dir 4) (< dir 7)) 1)
-					  (t 0)))
-				 *height*))
+	(y (animal-y animal))
+	(new-x (mod (+ x
+		       (cond ((and (>= dir 2) (< dir 5)) 1)
+			     ((or (= dir 1) (= dir 5)) 0)
+			     (t -1)))
+		    *width*))
+	(new-y (mod (+ y
+		       (cond ((and (>= dir 0) (< dir 3)) -1)
+			     ((and (>= dir 4) (< dir 7)) 1)
+			     (t 0)))
+		    *height*))
+	(new-pos (cons new-x new-y))
+	(pos (cons x y)))
+    
+    (setf (animal-x animal) new-x)
+    (setf (animal-y animal) new-y)
+    (remhash pos *animal-positions*)
+    (setf (gethash new-pos *animal-positions*) t)
     (decf (animal-energy animal))))
 
 (defun angle (genes x)
@@ -88,15 +96,33 @@
 (defun energy-effiency (energy-efficiency-gene)
   (round (* (tanh (/ energy-efficiency-gene *energy-coeff*)) *plant-energy*)))
 
-(defun eat-plant (animal)
+(defun consume-plant-energy (animal)
   (incf (animal-energy animal)
 	(energy-effiency (energy-efficiency-veg-gene animal))))
 
+(defun eat-plant (animal pos)
+  (consume-plant-energy animal)
+  (remhash pos *plants*))
+
+(defun eat-animal (animal-eating pos)
+ )
+
+(defun eat-animal-if-affine (animal-eating pos)
+  (let* ((meat-affinity (affinity-meat-gene animal-eating))
+	 (veg-affinity (affinity-veg-gene animal-eating))
+	 (eat-animal-prob (/ meat-affinity (+ veg-affinity meat-affinity)))
+	 (has-eaten (> (* 100 eat-animal-prob) (random 100))))
+    (when has-eaten
+      (eat-animal animal-eating pos))))
+
 (defun eat (animal)
-  (let ((pos (cons (animal-x animal) (animal-y animal))))
-    (when (gethash pos *plants*)
-      (eat-plant animal)
-      (remhash pos *plants*))))
+  (let* ((pos (cons (animal-x animal) (animal-y animal)))
+	 (has-plants (gethash pos *plants*))
+	 (has-animal (gethash pos *animal-positions*))
+	 (has-animal-and-plant (and (has-plants has-animal))))
+    (cond ((has-animal-and-plant) (eat-animalor-plant animal pos)
+	   (has-animal) (eat-animal-if-affine animal pos)
+	   (has-plant) (eat-plant animal)))))
 
 (defun reproduce (animal)
   (let ((e (animal-energy animal)))
@@ -110,9 +136,27 @@
 	(setf (animal-genes animal-nu) genes)
 	(push animal-nu *animals*)))))
 
+(defun remove-animal (animal)
+  (let* ((x (animal-x animal))
+	 (y (animal-y animal))
+	 (pos (cons x y)))
+    (remhash pos *animal-positions*)))
+
+(defun starved-animal-p (animal)
+  (<= (animal-energy animal) 0))
+
+(defun remove-animals ()
+  (let ((starved-animals
+	 (remove-if-not #'starved-animal-p *animals*))
+	(living-animals
+	 (remove-if  #'starved-animal-p *animals*)))
+    (loop for starved-animal in starved-animals
+       do (remove-animal starved-animal))
+    (setf *animals* living-animals)))
+
+
 (defun update-world ()
-  (setf *animals* (remove-if (lambda (animal) (<= (animal-energy animal) 0))
-			     *animals*))
+  (remove-animals)
   (mapc (lambda (animal)
 	  (turn animal)
 	  (move animal)
