@@ -1,3 +1,5 @@
+(defparameter *port* 8080)
+
 (defun http-char (c1 c2 &optional (default #\Space))
   "decodes two decimal values represented as characters into the corresponding ASCII character"
   (let ((code (parse-integer
@@ -57,8 +59,11 @@
       (let ((content (make-string (parse-integer length))))
         (read-sequence content stream)
         (parse-params content)))))
+
+
 (defun serve (request-handler)
-  (let ((socket (socket-server 8080)))
+  (format T "Started webserver on port ~d...~%~%" *port*)
+  (let ((socket (socket-server *port*)))
     ; ensures that socket-server-close is called
     (unwind-protect
          (loop (with-open-stream (stream (socket-accept socket))
@@ -72,12 +77,59 @@
                    (funcall request-handler path header params))))
       (socket-server-close socket))))
 
+(defparameter *day-names*
+  '("Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun"))
+
+(defparameter *month-names*
+  '("Jan" "Feb" "Mar" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"))
+
+(defun get-header-date ()
+  (multiple-value-bind
+      (sec min hour date month year weekday dst-p tz)
+      (get-decoded-time)
+    (format NIL "~a, ~d ~a ~d ~2,'0d:~2,'0d:~2,'0d GMT~@d"
+            (nth weekday *day-names*)
+            date
+            (nth (- month 2) *month-names*)
+            year
+            hour min sec
+            tz)))
+
+(defun get-response-headers (code)
+  (let ((date (get-header-date)))
+    (format NIL "HTTP/1.1 ~d OK~%Date: ~A ~%Server: Lisp/1.0.0~%Content-Type:text/html~%~%"  code date)))
+
+(defun send-response (code body)
+ (format t "~a ~a"
+            (get-response-headers code)
+            body))
+
+(defun js-func (name param-names body)
+  (format nil "function ~a(~a){~a}"
+          name
+          (format nil "~{~A~^, ~}" param-names)
+          body))
+
+
+(defun js-block (js-code)
+  (format nil "<script>~a</script>" js-code))
+
+(defun js-hello-world ()
+  "alert('hello world!')")
+
+(defun html-wrapper (body)
+  (format nil "<html><head>Awesome Lisp Server</head><body>~a</body></html>" body))
+
+
 (defun hello-request-handler (path header params)
   (if (equal path "greeting")
       (let ((name (assoc 'name params)))
         (if (not name)
-            (princ "<html><form>What is your name? <input name='name' /></form></html>")
-            (format t "<html>Nice to meet you, ~a!</html>" (cdr name))))
-      (princ "Sorry, I don't know that page.")))
+            (send-response 200 "<html><form>What is your name? <input name='name' /></form></html>")
+            (send-response 200  (format NIL "<html>I really like you, ~a! <3</html>" (cdr name)))))
+      (send-response 200 (html-wrapper  (js-block (js-hello-world))))))
 
- (serve #'hello-request-handler)
+(serve #'hello-request-handler)
+
+
+
